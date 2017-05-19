@@ -24,32 +24,26 @@ import org.greenrobot.eventbus.Subscribe;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.Currency;
-import java.util.List;
+import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import forest.les.cursus.data.LocalStorage;
 import forest.les.cursus.model.ValCurs;
-import forest.les.cursus.model.Valute;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.internal.schedulers.ComputationScheduler;
-import io.reactivex.internal.schedulers.NewThreadScheduler;
 import io.reactivex.schedulers.Schedulers;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
-import retrofit2.converter.gson.GsonConverterFactory;
-import retrofit2.converter.simplexml.SimpleXmlConverterFactory;
+import timber.log.Timber;
 
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
-    @BindView(R.id.recycler) RecyclerView recyclerView;
+    @BindView(R.id.recycler)
+    RecyclerView recyclerView;
     FastItemAdapter adapter;
-
+    private ThisApp thisApp;
+    private ValCurs rates;
 
 
     @Override
@@ -76,8 +70,7 @@ public class MainActivity extends AppCompatActivity
 
         recyclerView.setAdapter(adapter);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.addItemDecoration(new DividerItemDecoration(this,DividerItemDecoration.VERTICAL));
-
+        recyclerView.addItemDecoration(new DividerItemDecoration(this, DividerItemDecoration.VERTICAL));
 
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -100,7 +93,7 @@ public class MainActivity extends AppCompatActivity
         navigationView.setNavigationItemSelectedListener(this);
 
         try {
-            connectToBank();
+            getTodayExchangeRates();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -108,32 +101,26 @@ public class MainActivity extends AppCompatActivity
 
     }
 
-    private void connectToBank() throws IOException {
+    private void getTodayExchangeRates() throws IOException {
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("http://www.cbr.ru/")
-                .addConverterFactory(SimpleXmlConverterFactory.create())
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .build();
-        BankApi bankApi = retrofit.create(BankApi.class);
+        BankApi bankApi = ThisApp.getApi(this);
 
         Calendar calendar = Calendar.getInstance();
         int day = calendar.get(Calendar.DAY_OF_MONTH);
         int month = calendar.get(Calendar.MONTH);
         int year = calendar.get(Calendar.YEAR);
 
-        System.out.println(day + " " +month+ " " +year);
-        String format = String.format("%02d.%02d.%d", day, month + 1, year);
-
-        System.out.println(format);
+        String format = String.format(Locale.getDefault(), "%02d.%02d.%d", day, month + 1, year);
 
         bankApi.getData(format)
                 .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         valCurs -> {
-                    getMoneyData(valCurs);
-                    System.out.println(valCurs);},
+
+                            LocalStorage.saveValcurs(this, valCurs);
+                            EventBus.getDefault().post(valCurs);
+                        },
                         Throwable::printStackTrace,
                         () -> System.out.println("DONE"));
 
@@ -197,13 +184,17 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Subscribe
-    public void getMoneyData(ValCurs valCurs){
+    public void showMoneyData(ValCurs valCurs) {
 
+        rates = valCurs;
+
+        Timber.i("showMoneyData: %s",valCurs);
         recyclerView = (RecyclerView) findViewById(R.id.recycler);
 
-        Observable.fromIterable(valCurs.getConfigurations())
+        Observable.fromIterable(rates.getConfigurations())
 //                .map(valute -> Currency.getInstance(valute.charcode))
                 .filter(valute -> !valute.charcode.equals("BYN"))
+                .filter(valute -> valute.charcode.equals("USD")||valute.charcode.equals("EUR"))
 
                 .subscribe(valutr -> {
 
@@ -213,14 +204,14 @@ public class MainActivity extends AppCompatActivity
 
                     item.name = cur.getDisplayName();
 
-                    double v = Double.parseDouble(valutr.value.replace(",","."));
+                    double v = Double.parseDouble(valutr.value.replace(",", "."));
                     item.description = String.valueOf(v);
 
-                    if (valutr.charcode.equals("USD")){
-                        adapter.add(0,item);
-                    } else if (valutr.charcode.equals("EUR")){
-                        adapter.add(1,item);
-                    }else {
+                    if (valutr.charcode.equals("USD")) {
+                        adapter.add(0, item);
+                    } else if (valutr.charcode.equals("EUR")) {
+                        adapter.add(1, item);
+                    } else {
                         adapter.add(item);
                     }
                 });

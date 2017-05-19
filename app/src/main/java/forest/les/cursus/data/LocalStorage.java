@@ -24,7 +24,7 @@ import static android.R.attr.data;
 
 public class LocalStorage {
 
-    static Type type = new TypeToken<Map<String, ValCurs>>() {
+    static Type type = new TypeToken<HashMap<String, ValCurs>>() {
     }.getType();
 
     public synchronized static void saveValcurs(Context ctx, ValCurs valCurs) {

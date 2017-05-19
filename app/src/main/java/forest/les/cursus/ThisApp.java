@@ -12,7 +12,7 @@ public class ThisApp extends Application {
 
 
     public static ThisApp get(Context ctx) {
-        return (ThisApp) ctx.ggitetApplicationContext();
+        return (ThisApp) ctx.getApplicationContext();
     }
 
     @Override
@@ -34,13 +34,11 @@ public class ThisApp extends Application {
         }
     }
 
-    public static BankApi getApi(Context ctx) {
-        return ThisApp.get(ctx).api;
+    public static BankApi getApi(Context context) {
+        return ThisApp.get(context).api;
     }
 
-    public void refreshMaximoApi() {
-        api = Helpers.createBankApi(this);
-    }
+//    public void refreshBankApi() {api = Helpers.createBankApi(this);}
 
 //    public String getCurrentUser() {
 //        return currentUser;
